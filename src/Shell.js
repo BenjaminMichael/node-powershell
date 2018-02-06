@@ -25,6 +25,7 @@ export class Shell extends EventEmitter {
     executionPolicy: executionPolicy = 'Unrestricted',
     noProfile: noProfile = true,
     usePwsh: usePwsh = false,
+    multiLine: multiLine = false,
     EOI: EOI = 'EOI',
     version
   } = {}) {
@@ -38,7 +39,7 @@ export class Shell extends EventEmitter {
     this._cfg = {};
     this._cfg.verbose = debugMsg && verbose;
     this._cfg.EOI = EOI;
-
+    this._cfg.multiLine = multiLine;
     // arguments for PowerShell process
     let args = ['-NoLogo', '-NoExit', '-InputFormat', 'Text', '-Command', '-'];
     if(noProfile) {
@@ -153,10 +154,12 @@ export class Shell extends EventEmitter {
           paramValue = toPS(paramValue);
           // determine whether @ syntax used in cmd
           let isReplaced = false;
-          cmdStr = cmdStr.replace(`@${paramName}`, match => {
-            isReplaced = true;
-            return `-${paramName} ${paramValue}`
-          });
+          if (!multiLine){
+            cmdStr = cmdStr.replace(`@${paramName}`, match => {
+              isReplaced = true;
+              return `-${paramName} ${paramValue}`
+            });
+          }
           if(!isReplaced) {
             cmdStr = cmdStr.concat(` -${paramName}${paramValue ? ' ' + paramValue : ''}`);
           }
@@ -177,11 +180,16 @@ export class Shell extends EventEmitter {
       // Make resolve, reject accessible to the class
       this._resolve = resolve;
       this._reject = reject;
-
-      let cmdsStr = this._cmds.join('; ');
+      let cmdsStr ="";
+      if (this._cfg.multiLine){
+        cmdsStr = this._cmds.join('\n');
+      }else{
+        cmdsStr = this._cmds.join('; ');
+      }
+      
       ShellWrite(this._proc.stdin, cmdsStr)
       .then(() => ShellWrite(this._proc.stdin, os.EOL))
-      .then(() => ShellWrite(this._proc.stdin, `echo ${this._cfg.EOI}`))
+      .then(() => ShellWrite(this._proc.stdin, `echo ${this._cfg.EOI}${this._cfg.multiLine ? '; ' : ''}`))
       .then(() => ShellWrite(this._proc.stdin, os.EOL));
 
       this._print(MSGS.INVOKE.OK.CMD_START);

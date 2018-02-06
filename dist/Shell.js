@@ -4,7 +4,7 @@
  * @link http://rannn505.github.io/node-powershell/
  * @copyright Copyright (c) 2017 Ran Cohen <rannn505@outlook.com>
  * @license MIT (http://www.opensource.org/licenses/mit-license.php)
- * @Compiled At: 2017-12-17
+ * @Compiled At: 2018-2-5
   *********************************************************/
 'use strict';
 
@@ -77,6 +77,8 @@ var Shell = exports.Shell = function (_EventEmitter) {
         noProfile = _ref$noProfile === undefined ? true : _ref$noProfile,
         _ref$usePwsh = _ref.usePwsh,
         usePwsh = _ref$usePwsh === undefined ? false : _ref$usePwsh,
+        _ref$multiLine = _ref.multiLine,
+        multiLine = _ref$multiLine === undefined ? false : _ref$multiLine,
         _ref$EOI = _ref.EOI,
         EOI = _ref$EOI === undefined ? 'EOI' : _ref$EOI,
         version = _ref.version;
@@ -93,7 +95,7 @@ var Shell = exports.Shell = function (_EventEmitter) {
     _this._cfg = {};
     _this._cfg.verbose = debugMsg && verbose;
     _this._cfg.EOI = EOI;
-
+    _this._cfg.multiLine = multiLine;
     // arguments for PowerShell process
     var args = ['-NoLogo', '-NoExit', '-InputFormat', 'Text', '-Command', '-'];
     if (noProfile) {
@@ -229,10 +231,12 @@ var Shell = exports.Shell = function (_EventEmitter) {
                 paramValue = toPS(paramValue);
                 // determine whether @ syntax used in cmd
                 var isReplaced = false;
-                cmdStr = cmdStr.replace('@' + paramName, function (match) {
-                  isReplaced = true;
-                  return '-' + paramName + ' ' + paramValue;
-                });
+                if (!multiLine) {
+                  cmdStr = cmdStr.replace('@' + paramName, function (match) {
+                    isReplaced = true;
+                    return '-' + paramName + ' ' + paramValue;
+                  });
+                }
                 if (!isReplaced) {
                   cmdStr = cmdStr.concat(' -' + paramName + (paramValue ? ' ' + paramValue : ''));
                 }
@@ -275,15 +279,29 @@ var Shell = exports.Shell = function (_EventEmitter) {
         // Make resolve, reject accessible to the class
         _this3._resolve = resolve;
         _this3._reject = reject;
+        var cmdsStr = "";
+        if (_this3._cfg.multiLine) {
+          cmdsStr = _this3._cmds.join('\n');
+        } else {
+          cmdsStr = _this3._cmds.join('; ');
+        }
 
-        var cmdsStr = _this3._cmds.join('; ');
         ShellWrite(_this3._proc.stdin, cmdsStr).then(function () {
           return ShellWrite(_this3._proc.stdin, os.EOL);
         }).then(function () {
-          return ShellWrite(_this3._proc.stdin, 'echo ' + _this3._cfg.EOI);
+          return ShellWrite(_this3._proc.stdin, 'echo ' + _this3._cfg.EOI + (_this3._cfg.multiLine ? '; ' : ''));
         }).then(function () {
           return ShellWrite(_this3._proc.stdin, os.EOL);
         });
+
+        /*
+              const echo = `echo ${this._cfg.EOI}`;
+              ShellWrite(this._proc.stdin, cmdsStr)
+              .then(() => ShellWrite(this._proc.stdin, os.EOL))
+              .then(() => ShellWrite(this._proc.stdin, `${this._cfg.multiLine ? 'echo' : echo}`))
+              .then(() => ShellWrite(this._proc.stdin, os.EOL));
+        
+        */
 
         _this3._print(MSGS.INVOKE.OK.CMD_START);
         _this3._print(INFO_MSG(cmdsStr));
